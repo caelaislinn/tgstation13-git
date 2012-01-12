@@ -52,6 +52,8 @@ datum/preferences
 		be_special = 0
 		//Play admin midis
 		midis = 1
+		//Play pregame music
+		pregame_music = 1
 		//Saved changlog filesize to detect if there was a change
 		lastchangelog = 0
 
@@ -102,6 +104,11 @@ datum/preferences
 		job_engsec_med = 0
 		job_engsec_low = 0
 
+		flavor_text = ""
+
+		// slot stuff
+		var/slotname
+		var/curslot = 0
 
 	New()
 		hair_style = new/datum/sprite_accessory/hair/short
@@ -160,6 +167,15 @@ datum/preferences
 		dat += "<hr><b>Eyes</b><br>"
 		dat += "<a href='byond://?src=\ref[user];preferences=1;eyes=input'>Change Color</a> <font face=\"fixedsys\" size=\"3\" color=\"#[num2hex(r_eyes, 2)][num2hex(g_eyes, 2)][num2hex(b_eyes, 2)]\"><table  style='display:inline;' bgcolor=\"#[num2hex(r_eyes, 2)][num2hex(g_eyes, 2)][num2hex(b_eyes)]\"><tr><td>__</td></tr></table></font>"
 
+		/*
+		dat += "<hr><b>Flavor Text</b><br>"
+		dat += "<a href='byond://?src=\ref[user];preferences=1;flavor_text=1'>Change</a><br>"
+		if(lentext(flavor_text) <= 40)
+			dat += "[flavor_text]"
+		else
+			dat += "[copytext(flavor_text, 1, 37)]..."
+		*/
+
 		dat += "<hr>"
 		if(!jobban_isbanned(user, "Syndicate"))
 			var/n = 0
@@ -172,14 +188,32 @@ datum/preferences
 			src.be_special = 0
 		dat += "<hr>"
 
-		if(!IsGuestKey(user.key))
-			dat += "<a href='byond://?src=\ref[user];preferences=1;load=1'>Load Setup</a><br>"
-			dat += "<a href='byond://?src=\ref[user];preferences=1;save=1'>Save Setup</a><br>"
+		// slot options
+		if (!IsGuestKey(user.key))
+			if(!curslot)
+				curslot = 1
+				slotname = savefile_getslots(user)[1]
+			dat += "<a href='byond://?src=\ref[user];preferences=1;saveslot=[curslot]'>Save Slot [curslot] ([slotname])</a><br>"
+			dat += "<a href='byond://?src=\ref[user];preferences=1;loadslot2=1'>Load</a><br>"
+		dat += "<a href='byond://?src=\ref[user];preferences=1;createslot=1'>Create New Slot</a><br>"
 
 		dat += "<a href='byond://?src=\ref[user];preferences=1;reset_all=1'>Reset Setup</a><br>"
 		dat += "</body></html>"
 
 		user << browse(dat, "window=preferences;size=300x710")
+	proc/loadsave(mob/user)
+		var/dat = "<body>"
+		dat += "<tt><center>"
+
+		var/list/slots = savefile_getslots(user)
+		for(var/slot=1, slot<=slots.len, slot++)
+			dat += "<a href='byond://?src=\ref[user];preferences=1;loadslot=[slot]'>Load Slot [slot] ([slots[slot]]) </a><a href='byond://?src=\ref[user];preferences=1;removeslot=[slot]'>(R)</a><br><br>"
+
+		dat += "<a href='byond://?src=\ref[user];preferences=1;loadslot=CLOSE'>Close</a><br>"
+		dat += "</center></tt>"
+		user << browse(dat, "window=saves;size=300x640")
+	proc/closesave(mob/user)
+		user << browse(null, "window=saves;size=300x640")
 
 	proc/SetChoices(mob/user, changedjob)
 		var/HTML = "<body>"
@@ -536,13 +570,63 @@ datum/preferences
 		if(link_tags["b_random_name"])
 			be_random_name = !be_random_name
 
-		if(!IsGuestKey(user.key))
-			if(link_tags["save"])
-				savefile_save(user)
+		/*
+		if(link_tags["flavor_text"])
+			var/msg = input(usr,"Set the flavor text in your 'examine' verb. Don't metagame!","Flavor Text",html_decode(flavor_text)) as message
 
-			else if(link_tags["load"])
-				if(!savefile_load(user, 0))
+			if(msg != null)
+				msg = copytext(msg, 1, MAX_MESSAGE_LEN)
+				msg = html_encode(msg)
+
+				flavor_text = msg
+		*/
+
+		// slot links
+		if(!IsGuestKey(user.key))
+			if(link_tags["saveslot"])
+				var/slot = text2num(link_tags["saveslot"])
+
+				savefile_save(user, slot)
+
+			else if(link_tags["loadslot"])
+				var/slot = text2num(link_tags["loadslot"])
+				if(link_tags["loadslot"] == "CLOSE")
+					closesave(user)
+					return
+				if(!savefile_load(user, slot))
 					alert(user, "You do not have a savefile.")
+				else
+					curslot = slot
+					slotname = savefile_getslots(user)[curslot]
+					loadsave(user)
+		if(link_tags["removeslot"])
+			var/slot = text2num(link_tags["removeslot"])
+			if(!slot)
+				return
+
+			savefile_removeslot(user, slot)
+
+			usr << "Slot [slot] Deleted."
+			curslot = 1
+			slotname = savefile_getslots(user)[curslot]
+			loadsave(usr)
+		if(link_tags["loadslot2"])
+			loadsave(user)
+		if(link_tags["createslot"])
+			var/list/slots = savefile_getslots(user)
+			var/count = slots.len
+			count++
+			if(count > 10)
+				usr << "You have reached the character limit."
+				return
+			slotname = input(usr,"Choose a name for your slot","Name","Slot "+num2text(count))
+
+			curslot = savefile_createslot(user, slotname)
+
+			if(!savefile_load(user, count))
+				alert(user, "You do not have a savefile.")
+			else
+				closesave(user)
 
 		if(link_tags["reset_all"])
 			gender = MALE
@@ -583,6 +667,8 @@ datum/preferences
 		if(be_random_name)
 			randomize_name()
 		character.real_name = real_name
+
+		//character.flavor_text = flavor_text
 
 		character.gender = gender
 
