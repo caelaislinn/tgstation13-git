@@ -21,8 +21,6 @@
 			mind.key = key
 			mind.current = src
 
-		spawn() Playmusic() // git some tunes up in heeyaa~
-
 		var/starting_loc = pick(newplayer_start)
 		if(!starting_loc)	starting_loc = locate(1,1,1)
 		loc = starting_loc
@@ -36,7 +34,7 @@
 		if(watch_locations.len>0)
 			loc = pick(watch_locations)
 
-		if(!preferences.savefile_load(src, 0))
+		if(!preferences.savefile_load(src, 1))
 			preferences.ShowChoices(src)
 			if(!client.changes)
 				changes()
@@ -45,7 +43,9 @@
 			if(!client.changes && preferences.lastchangelog!=lastchangelog)
 				changes()
 				preferences.lastchangelog = lastchangelog
-				preferences.savefile_save(src)
+				preferences.savefile_save(src, 1)
+
+		spawn() Playmusic() // git some tunes up in heeyaa~
 
 		new_player_panel()
 		//PDA Resource Initialisation =======================================================>
@@ -120,9 +120,12 @@
 			else	output += "<b>You are ready</b> (<a href='byond://?src=\ref[src];ready=2'>Cancel</A>)<BR>"
 
 		else
+			//output += "<a href='byond://?src=\ref[src];manifest=1'>View the Crew Manifest</A><BR><BR>"
 			output += "<a href='byond://?src=\ref[src];late_join=1'>Join Game!</A><BR>"
 
 		output += "<BR><a href='byond://?src=\ref[src];observe=1'>Observe</A><BR>"
+
+		//output += "<BR><a href='byond://?src=\ref[src];pregame_music=1'>Lobby Music</A><BR>"
 
 		src << browse(output,"window=playersetup;size=250x210;can_close=0")
 		return
@@ -141,6 +144,9 @@
 				break
 
 		src << sound(ticker.login_music, repeat = 0, wait = 0, volume = 85, channel = 1) // MAD JAMS
+
+	//proc/Stopmusic()
+		//src << sound(null, repeat = 0, wait = 0, volume = 85, channel = 1) // stop the jamsz
 
 	Stat()
 		..()
@@ -208,8 +214,23 @@
 				del(src)
 				return 1
 
+		/*
+		if(href_list["pregame_music"])
+			preferences.pregame_music = !preferences.pregame_music
+			if(preferences.pregame_music)
+				Playmusic()
+			else
+				Stopmusic()
+			// only save this 1 pref, so current slot doesn't get saved w/o user's knowledge
+			var/savefile/F = new(preferences.savefile_path(src))
+			F["pregame_music"] << preferences.pregame_music
+		*/
+
 		if(href_list["late_join"])
 			LateChoices()
+
+		//if(href_list["manifest"])
+			//ViewManifest()
 
 		if(href_list["SelectedJob"])
 			if(!client.authenticated)
@@ -246,6 +267,7 @@
 		var/icon/char_icon = getFlatIcon(character,0)//We're creating out own cache so it's not needed.
 		job_master.AssignRole(character, rank, 1)
 		job_master.EquipRank(character, rank, 1)
+		//EquipCustomItems(character)
 		character.loc = pick(latejoin)
 		AnnounceArrival(character, rank)
 
@@ -359,6 +381,7 @@
 
 		src << sound(null, repeat = 0, wait = 0, volume = 85, channel = 1) // MAD JAMS cant last forever yo
 
+
 		new_character.dna.ready_dna(new_character)
 		if(mind)
 			mind.transfer_to(new_character)
@@ -366,6 +389,16 @@
 
 		return new_character
 
+	/*
+	proc/ViewManifest()
+		var/dat = "<html><body>"
+		dat += "<h4>Crew Manifest</h4>"
+		for(var/datum/data/record/t in data_core.general)
+			dat += "[t.fields["name"]] - [t.fields["rank"]]<br>"
+		dat += "<br>"
+
+		src << browse(dat, "window=manifest;size=300x420;can_close=1")
+	*/
 
 	Move()
 		return 0
